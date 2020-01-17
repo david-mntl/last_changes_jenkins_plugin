@@ -156,7 +156,6 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
 
         if (findVCSDir(vcsDirParam, GIT_DIR)) {
             isGit = true;
-
         } else if (findVCSDir(vcsDirParam, SVN_DIR)) {
             isSvn = true;
 
@@ -227,7 +226,8 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
                     break;
                 }
 
-                case LAST_TAG: {
+                //TODO: This should be executed inside a Callable, otherwise if it is in a slave node, it wont be able to do it.
+                /*case LAST_TAG: {
 
                     try {
                         if (isGit) {
@@ -248,13 +248,13 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
                         listener.error("Could not resolve last tag revision, last changes will use previous revision.");
                     }
                 }
-                break;
+                break;*/
             }
 
         }
 
         hasTargetRevision = targetRevision != null && !"".equals(targetRevision);
-
+        //TODO: Apply changes FOR SVN so the code runs on the workspace selected (master or slave) as it is done for git.
         try {
             if (isGit) {
                 lastChanges = vcsDirFound.act(new gitCallableAction(hasTargetRevision, targetRevision, listener));
@@ -285,6 +285,7 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
             listener.error("Last Changes NOT published due to the following error: " + (e.getMessage() == null ? e.toString() : e.getMessage()) + (e.getCause() != null ? " - " + e.getCause() : ""));
             LOG.log(Level.SEVERE, "Could not publish LastChanges.", e);
         }
+
         // always success (only warn when no diff was generated)
 
         build.setResult(Result.SUCCESS);
@@ -422,6 +423,7 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
          */
         public String getDisplayName() {
             return "Publish Last Changes_Test";
+
         }
 
         @Restricted(NoExternalUse.class) // Only for UI calls
@@ -533,13 +535,14 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
         TaskListener listener;
 
         gitCallableAction(boolean hasTargetRevision, String targetRevision, TaskListener listener) {
+
             this.hasTargetRevisionCallable = hasTargetRevision;
             this.targetRevisionCallable = targetRevision;
             this.listener = listener;
         }
 
         @Override
-        public LastChanges invoke(File workspace, VirtualChannel channel)  {
+        public LastChanges invoke(File workspace, VirtualChannel channel) {
 
             LastChanges lastChanges = null;
             try {
@@ -550,6 +553,7 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
                         lastChanges = GitLastChanges.getInstance().changesOf(gitRepository, GitLastChanges.getInstance().resolveCurrentRevision(gitRepository), gitRepository.resolve(targetRevisionCallable));
                         List<CommitInfo> commitInfoList = LastChangesUtil.getCommitsBetweenRevisions(gitRepository, isGit, lastChanges.getCurrentRevision().getCommitId(), targetRevisionCallable, null,null);
                         lastChanges.addCommits(LastChangesUtil.commitChanges(gitRepository, isGit, commitInfoList, lastChanges.getPreviousRevision().getCommitId(), null, null));
+
 
                     } else {
                         //compares current repository revision with previous one
