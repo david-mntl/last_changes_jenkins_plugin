@@ -143,7 +143,6 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
 
         if (findVCSDir(vcsDirParam, GIT_DIR)) {
             isGit = true;
-
         } else if (findVCSDir(vcsDirParam, SVN_DIR)) {
             isSvn = true;
 
@@ -203,7 +202,8 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
                     break;
                 }
 
-                case LAST_TAG: {
+                //TODO: This should be executed inside a Callable, otherwise if it is in a slave node, it wont be able to do it.
+                /*case LAST_TAG: {
 
                     try {
                         //The callable will obtain the target revision selected by the user in the corresponding node (master or slave)
@@ -223,12 +223,12 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
                         listener.error("Could not resolve last tag revision, last changes will use previous revision.");
                     }
                 }
-                break;
+                break;*/
             }
         }
 
         hasTargetRevision = targetRevision != null && !"".equals(targetRevision);
-
+        //TODO: Apply changes FOR SVN so the code runs on the workspace selected (master or slave) as it is done for git.
         try {
             //The callable will obtain the last changes between revisions in the corresponding node (master or slave)
             if (isGit) {
@@ -246,6 +246,7 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
             listener.error("Last Changes NOT published due to the following error: " + (e.getMessage() == null ? e.toString() : e.getMessage()) + (e.getCause() != null ? " - " + e.getCause() : ""));
             LOG.log(Level.SEVERE, "Could not publish LastChanges.", e);
         }
+
         // always success (only warn when no diff was generated)
 
         build.setResult(Result.SUCCESS);
@@ -446,7 +447,12 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
          * This human readable name is used in the configuration screen.
          */
         public String getDisplayName() {
+<<<<<<< HEAD
             return "Publish Last Changes";
+=======
+            return "Publish Last Changes_Test";
+
+>>>>>>> 40527e1d68865522f0429c7ee518d9eafb05b392
         }
 
         @Restricted(NoExternalUse.class) // Only for UI calls
@@ -503,6 +509,110 @@ public class LastChangesPublisher extends Recorder implements SimpleBuildStep, S
 
     }
 
+<<<<<<< HEAD
+=======
+    /**
+     * The callable will obtain the target revision selected by the user in case that it is required. It will
+     * look for it in the corresponding node that is being executed (Master or Slave)
+     */
+    private static final class getTargetRevisionCallableAction implements FilePath.FileCallable <String> {
+
+        boolean isGitVar;
+
+        TaskListener listener;
+
+        getTargetRevisionCallableAction(boolean isGit, TaskListener listener) {
+            this.isGitVar = isGit;
+            this.listener = listener;
+        }
+
+        @Override
+        public String invoke(File workspace, VirtualChannel virtualChannel) throws RepositoryNotFoundException {
+
+            if (workspace.exists() && workspace.isDirectory()) {
+                Repository gitRepository = repository(workspace.getAbsolutePath());
+                ObjectId lastTagRevision = GitLastChanges.getInstance().getLastTagRevision(gitRepository);
+                if (lastTagRevision != null) {
+                    return lastTagRevision.name();
+                } else {
+                    return null;
+                }
+            } else {
+                String lasTagRevisionErrorMsg = "Could not find workspace directory when trying the last tag revision";
+                LOG.log(Level.WARNING, lasTagRevisionErrorMsg);
+                listener.error(lasTagRevisionErrorMsg);
+                throw new RepositoryNotFoundException(lasTagRevisionErrorMsg);
+            }
+        }
+
+        @Override
+        public void checkRoles(RoleChecker roleChecker) throws SecurityException {
+            //Nothing to do
+        }
+    }
+
+    /**
+     * The callable will identify if it is being run by the Master node or by the slave node
+     * and thus it will execute the calculation on the corresponding node.
+     */
+    private static final class gitCallableAction implements FilePath.FileCallable <LastChanges> {
+
+        boolean isGit = true;
+
+        boolean hasTargetRevisionCallable;
+
+        String targetRevisionCallable = null;
+
+        TaskListener listener;
+
+        gitCallableAction(boolean hasTargetRevision, String targetRevision, TaskListener listener) {
+
+            this.hasTargetRevisionCallable = hasTargetRevision;
+            this.targetRevisionCallable = targetRevision;
+            this.listener = listener;
+        }
+
+        @Override
+        public LastChanges invoke(File workspace, VirtualChannel channel) {
+
+            LastChanges lastChanges = null;
+            try {
+                if(workspace.exists() && workspace.isDirectory()) {
+                    Repository gitRepository = repository(workspace.getAbsolutePath());
+                    if (hasTargetRevisionCallable) {
+                        //compares current repository revision with provided revision
+                        lastChanges = GitLastChanges.getInstance().changesOf(gitRepository, GitLastChanges.getInstance().resolveCurrentRevision(gitRepository), gitRepository.resolve(targetRevisionCallable));
+                        List<CommitInfo> commitInfoList = LastChangesUtil.getCommitsBetweenRevisions(gitRepository, isGit, lastChanges.getCurrentRevision().getCommitId(), targetRevisionCallable, null,null);
+                        lastChanges.addCommits(LastChangesUtil.commitChanges(gitRepository, isGit, commitInfoList, lastChanges.getPreviousRevision().getCommitId(), null, null));
+
+
+                    } else {
+                        //compares current repository revision with previous one
+                        lastChanges = GitLastChanges.getInstance().changesOf(gitRepository);
+                        lastChanges.addCommit(new CommitChanges(lastChanges.getCurrentRevision(), lastChanges.getDiff()));
+                    }
+                    return lastChanges;
+                } else {
+                    String lastChangesWorkDirErrorMsg = "Could not find workspace directory when tried to get last changes of the revision";
+                    LOG.log(Level.WARNING, lastChangesWorkDirErrorMsg);
+                    listener.error(lastChangesWorkDirErrorMsg);
+                    throw new RepositoryNotFoundException(lastChangesWorkDirErrorMsg);
+                }
+            } catch (IOException e) {
+                String lastChangesErrorMsg = "Could not get last changes of the revisions";
+                LOG.log(Level.SEVERE, lastChangesErrorMsg, e);
+                listener.error(lastChangesErrorMsg);
+                throw new LastChangesException(lastChangesErrorMsg);
+            }
+        }
+
+        @Override
+        public void checkRoles(RoleChecker roleChecker) throws SecurityException {
+            //Nothing to do
+        }
+    }
+
+>>>>>>> 40527e1d68865522f0429c7ee518d9eafb05b392
     public SinceType getSince() {
         return since;
     }
